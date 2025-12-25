@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat de Noël by Cédric 🎄</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --gold: #D4AF37;
+      --gold-light: #F4E4BC;
+      --burgundy: #722F37;
+      --burgundy-dark: #4A1F24;
+      --cream: #FDF8F0;
+      --forest: #1B4332;
+      --forest-light: #2D6A4F;
+      --snow: #FAFBFC;
+      --shadow: rgba(114, 47, 55, 0.15);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--burgundy-dark) 0%, var(--burgundy) 50%, var(--forest) 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Flocons de neige animés */
+    .snowflakes {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .snowflake {
+      position: absolute;
+      top: -20px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 1.2rem;
+      animation: fall linear infinite;
+      text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    }
+
+    @keyframes fall {
+      0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0.3;
+      }
+    }
+
+    /* Container principal */
+    .chat-container {
+      width: 100%;
+      max-width: 500px;
+      background: var(--cream);
+      border-radius: 24px;
+      box-shadow: 
+        0 25px 80px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(212, 175, 55, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+      animation: containerAppear 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes containerAppear {
+      from {
+        opacity: 0;
+        transform: scale(0.9) translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    /* Header */
+    .chat-header {
+      background: linear-gradient(135deg, var(--burgundy) 0%, var(--burgundy-dark) 100%);
+      padding: 24px 28px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chat-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l5 10 10-5-5 10 10 5-10 5 5 10-10-5-5 10-5-10-10 5 5-10-10-5 10-5-5-10 10 5z' fill='%23D4AF37' fill-opacity='0.05'/%3E%3C/svg%3E");
+      opacity: 0.5;
+    }
+
+    .chat-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-weight: 500;
+      color: var(--gold-light);
+      letter-spacing: 0.05em;
+      position: relative;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .chat-title::before {
+      content: '✦';
+      margin-right: 12px;
+      color: var(--gold);
+    }
+
+    .chat-title::after {
+      content: '✦';
+      margin-left: 12px;
+      color: var(--gold);
+    }
+
+    .chat-subtitle {
+      font-size: 0.85rem;
+      color: rgba(244, 228, 188, 0.7);
+      margin-top: 6px;
+      position: relative;
+    }
+
+    .users-status {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 12px;
+      position: relative;
+    }
+
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      color: var(--gold-light);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+    }
+
+    .user-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: #4ADE80;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Écran de connexion */
+    .login-screen {
+      padding: 40px 32px;
+      text-align: center;
+    }
+
+    .login-screen h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.5rem;
+      color: var(--burgundy);
+      margin-bottom: 8px;
+    }
+
+    .login-screen p {
+      font-size: 0.9rem;
+      color: var(--burgundy);
+      opacity: 0.7;
+      margin-bottom: 28px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      text-align: left;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--burgundy-dark);
+      margin-bottom: 8px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid rgba(114, 47, 55, 0.15);
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      background: var(--snow);
+      color: var(--burgundy-dark);
+      transition: all 0.3s ease;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15);
+    }
+
+    .form-group input::placeholder {
+      color: rgba(114, 47, 55, 0.4);
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--burgundy) 0%, var(--burgundy-dark) 100%);
+      color: var(--gold-light);
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-btn::before {
+      content: '🎄';
+      margin-right: 10px;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px var(--shadow);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .error-message {
+      background: rgba(220, 53, 69, 0.1);
+      color: #DC3545;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+      border: 1px solid rgba(220, 53, 69, 0.2);
+      animation: shake 0.4s ease;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+
+    /* Zone de chat */
+    .chat-screen {
+      display: none;
+      flex-direction: column;
+      height: 550px;
+    }
+
+    .chat-screen.active {
+      display: flex;
+    }
+
+    .login-screen.hidden {
+      display: none;
+    }
+
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: linear-gradient(180deg, var(--snow) 0%, var(--cream) 100%);
+    }
+
+    .messages-area::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .messages-area::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .messages-area::-webkit-scrollbar-thumb {
+      background: rgba(114, 47, 55, 0.2);
+      border-radius: 3px;
+    }
+
+    .message {
+      margin-bottom: 16px;
+      animation: messageAppear 0.3s ease;
+    }
+
+    @keyframes messageAppear {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.own {
+      text-align: right;
+    }
+
+    .message-content {
+      display: inline-block;
+      max-width: 80%;
+      padding: 12px 18px;
+      border-radius: 18px;
+      position: relative;
+    }
+
+    .message:not(.own) .message-content {
+      background: white;
+      color: var(--burgundy-dark);
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .message.own .message-content {
+      background: linear-gradient(135deg, var(--forest-light) 0%, var(--forest) 100%);
+      color: white;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 12px rgba(27, 67, 50, 0.3);
+    }
+
+    .message-username {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--burgundy);
+      margin-bottom: 4px;
+      opacity: 0.8;
+    }
+
+    .message.own .message-username {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .message-text {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .message-time {
+      font-size: 0.7rem;
+      margin-top: 6px;
+      opacity: 0.6;
+    }
+
+    .message.own .message-time {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* Message système */
+    .system-message {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .system-message span {
+      display: inline-block;
+      background: rgba(212, 175, 55, 0.15);
+      color: var(--burgundy);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      border: 1px solid rgba(212, 175, 55, 0.3);
+    }
+
+    /* Indicateur de frappe */
+    .typing-indicator {
+      padding: 0 20px 10px;
+      font-size: 0.8rem;
+      color: var(--burgundy);
+      opacity: 0.6;
+      font-style: italic;
+      min-height: 24px;
+    }
+
+    /* Zone de saisie */
+    .input-area {
+      padding: 16px 20px;
+      background: white;
+      border-top: 1px solid rgba(114, 47, 55, 0.08);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .message-input {
+      flex: 1;
+      padding: 14px 18px;
+      border: 2px solid rgba(114, 47, 55, 0.1);
+      border-radius: 24px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      background: var(--snow);
+      color: var(--burgundy-dark);
+      transition: all 0.3s ease;
+      resize: none;
+    }
+
+    .message-input:focus {
+      outline: none;
+      border-color: var(--forest-light);
+      box-shadow: 0 0 0 4px rgba(45, 106, 79, 0.1);
+    }
+
+    .send-btn {
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--forest-light) 0%, var(--forest) 100%);
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(27, 67, 50, 0.3);
+    }
+
+    .send-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(27, 67, 50, 0.4);
+    }
+
+    .send-btn:active {
+      transform: scale(0.95);
+    }
+
+    .send-btn svg {
+      width: 20px;
+      height: 20px;
+      transform: translateX(1px);
+    }
+
+    /* Responsive */
+    @media (max-width: 540px) {
+      .chat-container {
+        border-radius: 20px;
+      }
+
+      .chat-header {
+        padding: 20px;
+      }
+
+      .chat-title {
+        font-size: 1.6rem;
+      }
+
+      .login-screen {
+        padding: 30px 24px;
+      }
+
+      .chat-screen {
+        height: 500px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Flocons de neige -->
+  <div class="snowflakes" id="snowflakes"></div>
+
+  <div class="chat-container">
+    <!-- Header -->
+    <div class="chat-header">
+      <h1 class="chat-title">Joyeux Noël</h1>
+      <p class="chat-subtitle">Un moment privilégié à deux</p>
+      <div class="users-status" id="usersStatus"></div>
+    </div>
+
+    <!-- Écran de connexion -->
+    <div class="login-screen" id="loginScreen">
+      <h2>Rejoindre le salon</h2>
+      <p>Entrez le code secret et choisissez votre pseudo</p>
+      
+      <div id="errorContainer"></div>
+
+      <div class="form-group">
+        <label for="accessCode">Code d'accès</label>
+        <input type="password" id="accessCode" placeholder="Entrez le code secret..." autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label for="username">Votre pseudo</label>
+        <input type="text" id="username" placeholder="Comment vous appeler ?" maxlength="20" autocomplete="off">
+      </div>
+
+      <button class="login-btn" id="loginBtn">Entrer dans le salon</button>
+    </div>
+
+    <!-- Écran de chat -->
+    <div class="chat-screen" id="chatScreen">
+      <div class="messages-area" id="messagesArea"></div>
+      <div class="typing-indicator" id="typingIndicator"></div>
+      <div class="input-area">
+        <input type="text" class="message-input" id="messageInput" placeholder="Écrivez votre message..." maxlength="500">
+        <button class="send-btn" id="sendBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Génération des flocons
+    function createSnowflakes() {
+      const container = document.getElementById('snowflakes');
+      const snowflakeChars = ['❄', '❅', '❆', '✦', '✧'];
+      
+      for (let i = 0; i < 50; i++) {
+        const snowflake = document.createElement('div');
+        snowflake.className = 'snowflake';
+        snowflake.textContent = snowflakeChars[Math.floor(Math.random() * snowflakeChars.length)];
+        snowflake.style.left = Math.random() * 100 + '%';
+        snowflake.style.animationDuration = (Math.random() * 10 + 8) + 's';
+        snowflake.style.animationDelay = Math.random() * 10 + 's';
+        snowflake.style.fontSize = (Math.random() * 1 + 0.8) + 'rem';
+        snowflake.style.opacity = Math.random() * 0.6 + 0.2;
+        container.appendChild(snowflake);
+      }
+    }
+    createSnowflakes();
+
+    // Connexion Socket.io
+    const socket = io();
+
+    // Éléments DOM
+    const loginScreen = document.getElementById('loginScreen');
+    const chatScreen = document.getElementById('chatScreen');
+    const accessCodeInput = document.getElementById('accessCode');
+    const usernameInput = document.getElementById('username');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorContainer = document.getElementById('errorContainer');
+    const messagesArea = document.getElementById('messagesArea');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const typingIndicator = document.getElementById('typingIndicator');
+    const usersStatus = document.getElementById('usersStatus');
+
+    let currentUsername = '';
+    let typingTimeout = null;
+
+    // Authentification
+    loginBtn.addEventListener('click', attemptLogin);
+    accessCodeInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') usernameInput.focus();
+    });
+    usernameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') attemptLogin();
+    });
+
+    function attemptLogin() {
+      const code = accessCodeInput.value.trim();
+      const username = usernameInput.value.trim();
+
+      if (!code || !username) {
+        showError('Veuillez remplir tous les champs');
+        return;
+      }
+
+      if (username.length < 2) {
+        showError('Le pseudo doit contenir au moins 2 caractères');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Connexion...';
+      
+      socket.emit('authenticate', { code, username });
+    }
+
+    function showError(message) {
+      errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
+    }
+
+    // Événements Socket
+    socket.on('auth_error', ({ message }) => {
+      showError(message);
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '🎄 Entrer dans le salon';
+    });
+
+    socket.on('auth_success', ({ username, history, usersOnline }) => {
+      currentUsername = username;
+      loginScreen.classList.add('hidden');
+      chatScreen.classList.add('active');
+      
+      updateUsersStatus(usersOnline);
+      
+      // Charger l'historique
+      history.forEach(msg => addMessage(msg, false));
+      
+      // Message de bienvenue
+      addSystemMessage(`Bienvenue ${username} ! 🎄`);
+      
+      scrollToBottom();
+      messageInput.focus();
+    });
+
+    socket.on('user_joined', ({ username, usersOnline }) => {
+      addSystemMessage(`${username} a rejoint le salon ✨`);
+      updateUsersStatus(usersOnline);
+    });
+
+    socket.on('user_left', ({ username, usersOnline }) => {
+      addSystemMessage(`${username} a quitté le salon`);
+      updateUsersStatus(usersOnline);
+    });
+
+    socket.on('new_message', (message) => {
+      addMessage(message, true);
+    });
+
+    socket.on('user_typing', ({ username }) => {
+      typingIndicator.textContent = `${username} écrit...`;
+    });
+
+    socket.on('user_stop_typing', () => {
+      typingIndicator.textContent = '';
+    });
+
+    // Fonctions d'affichage
+    function updateUsersStatus(users) {
+      usersStatus.innerHTML = users.map(user => `
+        <div class="user-badge">
+          <span class="dot"></span>
+          ${escapeHtml(user)}
+        </div>
+      `).join('');
+    }
+
+    function addMessage(msg, animate) {
+      const isOwn = msg.username === currentUsername;
+      const div = document.createElement('div');
+      div.className = `message ${isOwn ? 'own' : ''}`;
+      div.innerHTML = `
+        <div class="message-content">
+          <div class="message-username">${escapeHtml(msg.username)}</div>
+          <div class="message-text">${escapeHtml(msg.text)}</div>
+          <div class="message-time">${msg.timestamp}</div>
+        </div>
+      `;
+      messagesArea.appendChild(div);
+      if (animate) scrollToBottom();
+    }
+
+    function addSystemMessage(text) {
+      const div = document.createElement('div');
+      div.className = 'system-message';
+      div.innerHTML = `<span>${text}</span>`;
+      messagesArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Envoi de message
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    messageInput.addEventListener('input', () => {
+      socket.emit('typing');
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        socket.emit('stop_typing');
+      }, 1000);
+    });
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text) return;
+
+      socket.emit('send_message', { text });
+      socket.emit('stop_typing');
+      messageInput.value = '';
+      messageInput.focus();
+    }
+
+    // Gestion de la reconnexion
+    socket.on('disconnect', () => {
+      addSystemMessage('Connexion perdue... Tentative de reconnexion');
+    });
+
+    socket.on('connect', () => {
+      if (currentUsername) {
+        socket.emit('authenticate', { 
+          code: 'noel2025', 
+          username: currentUsername 
+        });
+      }
+    });
+  </script>
+</body>
+</html>
