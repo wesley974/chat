@@ -1,0 +1,15 @@
+{
+  "name": "chat-noel",
+  "version": "1.0.0",
+  "description": "Chat de Noël privé pour deux personnes",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "author": "Wesley",
+  "license": "MIT"
+}
