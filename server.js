@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -16,8 +17,8 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Configuration
-const ACCESS_CODE = 'noel2025';
-const MAX_USERS = 2;
+const ACCESS_CODE = process.env.ACCESS_CODE || 'noel2025';
+const MAX_USERS = parseInt(process.env.MAX_USERS) || 2;
 
 // État du chat
 let connectedUsers = new Map();
