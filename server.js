@@ -29,13 +29,26 @@ let messageHistory = [];
 // Nettoyer l'historique en fonction du type de message
 function cleanOldMessages() {
   const now = Date.now();
+  const expiredMessages = [];
+
   messageHistory = messageHistory.filter(msg => {
     const maxAge = msg.type === 'image' ? IMAGE_DURATION_MS : TEXT_HISTORY_DURATION_MS;
-    return (now - msg.createdAt) < maxAge;
+    const isExpired = (now - msg.createdAt) >= maxAge;
+
+    if (isExpired) {
+      expiredMessages.push(msg.id);
+    }
+
+    return !isExpired;
+  });
+
+  // Notifier tous les clients des messages expirés
+  expiredMessages.forEach(id => {
+    io.emit('delete_message', { id });
   });
 }
 
-// Nettoyer toutes les 5 secondes pour les images
+// Nettoyer toutes les 5 secondes
 setInterval(cleanOldMessages, 5000);
 
 io.on('connection', (socket) => {
@@ -92,7 +105,8 @@ io.on('connection', (socket) => {
       createdAt: Date.now(),
       timestamp: new Date().toLocaleTimeString('fr-FR', {
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'Indian/Reunion'
       })
     };
 
@@ -122,7 +136,8 @@ io.on('connection', (socket) => {
       createdAt: Date.now(),
       timestamp: new Date().toLocaleTimeString('fr-FR', {
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'Indian/Reunion'
       }),
       expiresAt: Date.now() + IMAGE_DURATION_MS
     };
